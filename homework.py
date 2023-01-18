@@ -38,17 +38,12 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверка доступности переменных окружения."""
-    tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
-    for token in tokens:
-        if token is not None:
-            return True
-        logging.critical(
-            f'Отсутствует обязательная переменная окружения: {token}')
-        sys.exit('Отсутствуют переменные окружения, остановка бота')
+    return all((PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID))
 
 
 def send_message(bot, message):
     """Отправка сообщения в Telegram чат."""
+    logging.debug('Начинаем отправку сообщения')
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logging.debug('Сообщение успешно отправлено')
@@ -58,6 +53,7 @@ def send_message(bot, message):
 
 def get_api_answer(timestamp):
     """Запрос к API сервиса Практикум.Домашка."""
+    logging.debug('Начали запрос к API')
     try:
         response = requests.get(
             ENDPOINT,
@@ -77,9 +73,12 @@ def check_response(response):
         raise TypeError('Ответ не в виде словаря')
     if 'homeworks' not in response:
         raise KeyError('Отсутствует ключ "homeworks"')
-    if not isinstance(response['homeworks'], list):
+    if 'current_date' not in response:
+        raise KeyError('Отсутствует ключ "current_date"')
+    homework = response['homeworks']
+    if not isinstance(homework, list):
         raise TypeError('Данные не в виде списка')
-    return response['homeworks']
+    return homework
 
 
 def parse_status(homework):
@@ -87,6 +86,8 @@ def parse_status(homework):
     status = homework.get('status')
     if 'homework_name' not in homework:
         raise KeyError('Отсутствует название работы')
+    if 'status' not in homework:
+        raise KeyError('Отсутствует статус работы')
     if status not in HOMEWORK_VERDICTS:
         raise ValueError(f'Неожиданный статус работы {status}')
     homework_name = homework.get('homework_name')
@@ -96,7 +97,9 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    check_tokens()
+    if not check_tokens():
+        logging.critical('Отсутствует обязательная переменная окружения')
+        sys.exit('Отсутствуют переменные окружения, остановка бота')
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
     last_message = ''
@@ -109,6 +112,8 @@ def main():
                 if message != last_message:
                     send_message(bot, message)
                     last_message = message
+            else:
+                logging.debug('Домашние работы отсутствуют')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.exception(message)
