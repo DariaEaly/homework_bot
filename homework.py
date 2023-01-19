@@ -107,7 +107,7 @@ def main():
         try:
             response = get_api_answer(timestamp - 3000000)
             homework = check_response(response)
-            if homework[0]:
+            if homework:
                 message = parse_status(homework[0])
                 if message != last_message:
                     send_message(bot, message)
